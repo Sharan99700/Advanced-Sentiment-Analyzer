@@ -1,7 +1,7 @@
 # advanced_sentiment_app.py
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 from transformers import pipeline
 
 # Load Hugging Face sentiment model
@@ -11,12 +11,12 @@ def load_model():
 
 classifier = load_model()
 
-st.title("📊 Advanced Sentiment Analyzer")
+st.title("📊 Advanced Sentiment Analyzer (with Interactive Graphs)")
 
 st.markdown("""
 This app performs **sentiment analysis** using Hugging Face Transformers.  
-- Enter a single text for instant sentiment prediction.  
-- Or upload a CSV file (with a column named `text`) for batch analysis.  
+- Enter a single text for instant prediction with visualization.  
+- Or upload a CSV file (with a column named `text`) for batch analysis with charts.  
 """)
 
 # ---- Single Text Analysis ----
@@ -28,15 +28,20 @@ if st.button("Analyze Text"):
         result = classifier(text_input)[0]
         sentiment = result['label']
         score = result['score']
+
         st.success(f"**Sentiment:** {sentiment} (Confidence: {score:.2f})")
 
-        # Visualization of confidence
-        labels = [sentiment, f"Not {sentiment}"]
-        scores = [score, 1 - score]
+        # Interactive donut chart for confidence
+        fig = px.pie(
+            values=[score, 1 - score],
+            names=[sentiment, f"Not {sentiment}"],
+            hole=0.5,
+            title="Confidence Distribution",
+            color=[sentiment, f"Not {sentiment}"],
+            color_discrete_sequence=["#4CAF50", "#FF5252"]
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-        fig, ax = plt.subplots()
-        ax.bar(labels, scores, color=["#4CAF50", "#FF5252"])
-        st.pyplot(fig)
     else:
         st.warning("⚠️ Please enter some text.")
 
@@ -50,15 +55,34 @@ if uploaded_file:
     if "text" not in df.columns:
         st.error("❌ CSV must contain a column named 'text'")
     else:
-        # Run sentiment analysis on each row
-        st.info("Analyzing sentiments... This may take a few seconds.")
+        st.info("Analyzing sentiments... Please wait.")
         df["Sentiment"] = df["text"].apply(lambda x: classifier(str(x))[0]['label'])
         df["Confidence"] = df["text"].apply(lambda x: classifier(str(x))[0]['score'])
 
         st.write("✅ Sample results:")
         st.dataframe(df.head())
 
-        # Plot distribution
-        sentiment_counts = df["Sentiment"].value_counts()
-        st.subheader("📊 Sentiment Distribution")
-        st.bar_chart(sentiment_counts)
+        # Pie chart for sentiment distribution
+        sentiment_counts = df["Sentiment"].value_counts().reset_index()
+        sentiment_counts.columns = ["Sentiment", "Count"]
+
+        pie_fig = px.pie(
+            sentiment_counts,
+            values="Count",
+            names="Sentiment",
+            hole=0.4,
+            title="Sentiment Distribution (Pie Chart)"
+        )
+        st.plotly_chart(pie_fig, use_container_width=True)
+
+        # Interactive bar chart
+        bar_fig = px.bar(
+            sentiment_counts,
+            x="Sentiment",
+            y="Count",
+            text="Count",
+            color="Sentiment",
+            title="Sentiment Distribution (Bar Chart)"
+        )
+        bar_fig.update_traces(textposition="outside")
+        st.plotly_chart(bar_fig, use_container_width=True)
